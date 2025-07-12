@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUKSO Badge Flex</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { ethers } = window.ethers;
+    const contractAddress = "YOUR_CONTRACT_ADDRESS"; // Replace with deployed contract address
+    const contractABI = [
+      "function mintBadge(address to, string memory metadataURI) public returns (uint256)",
+      "function getBadgeMetadata(uint256 badgeId) public view returns (string memory)",
+      "function balanceOf(address owner) public view returns (uint256)",
+      "function tokenOfOwnerByIndex(address owner, uint256 index) public view returns (uint256)",
+      "function owner() public view returns (address)"
+    ];
+
+    const App = () => {
+      const [account, setAccount] = React.useState(null);
+      const [badges, setBadges] = React.useState([]);
+      const [metadataURI, setMetadataURI] = React.useState("");
+      const [isOwner, setIsOwner] = React.useState(false);
+      const [status, setStatus] = React.useState("");
+
+      const connectWallet = async () => {
+        if (window.ethereum) {
+          try {
+            const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+            setAccount(accounts[0]);
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const network = await provider.getNetwork();
+            if (Number(network.chainId) !== 2828) {
+              await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: "0xb0c" }], // LUKSO Testnet chainId: 2828
+              });
+            }
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+            const owner = await contract.owner();
+            setIsOwner(accounts[0].toLowerCase() === owner.toLowerCase());
+            fetchBadges(accounts[0], provider);
+          } catch (error) {
+            setStatus("Error connecting wallet: " + error.message);
+          }
+        } else {
+          setStatus("Please install MetaMask to connect to LUKSO!");
+        }
+      };
+
+      const fetchBadges = async (owner, provider) => {
+        const contract = new ethers.Contract(contractAddress, contractABI, provider);
+        const balance = await contract.balanceOf(owner);
+        const badgeList = [];
+        for (let i = 0; i < balance; i++) {
+          const tokenId = await contract.tokenOfOwnerByIndex(owner, i);
+          const metadata = await contract.getBadgeMetadata(tokenId);
+          badgeList.push({ id: tokenId, metadata });
+        }
+        setBadges(badgeList);
+      };
+
+      const mintBadge = async () => {
+        if (!metadataURI) {
+          setStatus("Please enter a metadata URI!");
+          return;
+        }
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const contract = new ethers.Contract(contractAddress, contractABI, signer);
+          const tx = await contract.mintBadge(account, metadataURI);
+          setStatus("Minting badge... Waiting for confirmation");
+          await tx.wait();
+          setStatus("Badge minted successfully!");
+          fetchBadges(account, provider);
+          setMetadataURI("");
+        } catch (error) {
+          setStatus("Error minting badge: " + error.message);
+        }
+      };
+
+      const shareBadge = (badgeId) => {
+        const tweet = `Just flexed my LUKSO badge #${badgeId}! 🦚 Join the new creative economy on @LUKSO_network! #Web3Identity #LUKSO`;
+        window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank");
+      };
+
+      return (
+        <div className="max-w-4xl mx-auto p-6">
+          <h1 className="text-4xl font-bold text-center text-cyan-400 mb-6">LUKSO Badge Flex 🦚</h1>
+          <p className="text-center text-gray-400 mb-8">Show off your Universal Profile badges on the LUKSO network!</p>
+          
+          {!account ? (
+            <button
+              onClick={connectWallet}
+              className="w-full bg-cyan-500 text-gray-900 font-semibold py-3 rounded-lg hover:bg-cyan-400 transition"
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <div>
+              <p className="text-center text-gray-300 mb-4">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
+              
+              {isOwner && (
+                <div className="mb-8 p-6 bg-gray-800 rounded-lg">
+                  <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Mint a New Badge</h2>
+                  <input
+                    type="text"
+                    value={metadataURI}
+                    onChange={(e) => setMetadataURI(e.target.value)}
+                    placeholder="Enter metadata URI (e.g., ipfs://...)"
+                    className="w-full p-3 mb-4 bg-gray-700 text-white rounded-lg"
+                  />
+                  <button
+                    onClick={mintBadge}
+                    className="w-full bg-cyan-500 text-gray-900 font-semibold py-3 rounded-lg hover:bg-cyan-400 transition"
+                  >
+                    Mint Badge
+                  </button>
+                </div>
+              )}
+
+              <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Your Badges</h2>
+              {badges.length === 0 ? (
+                <p className="text-gray-400">No badges yet. {isOwner ? "Mint one above!" : "Ask the owner to mint you one!"}</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {badges.map((badge) => (
+                    <div key={badge.id} className="p-4 bg-gray-800 rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition">
+                      <h3 className="text-lg font-semibold">Badge #{badge.id}</h3>
+                      <p className="text-gray-400 truncate">Metadata: {badge.metadata}</p>
+                      <button
+                        onClick={() => shareBadge(badge.id)}
+                        className="mt-2 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-500 transition"
+                      >
+                        Flex on X 🦚
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {status && (
+            <p className="mt-4 text-center text-red-400">{status}</p>
+          )}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
