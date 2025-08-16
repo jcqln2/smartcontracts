@@ -1,6 +1,4 @@
-Below is a barebones minimum viable product (MVP) smart contract for a **Profile Badge System** that integrates with LUKSO's Universal Profiles. This contract uses the ERC-721 standard for non-fungible badges, allowing issuers to mint badges and assign them to Universal Profiles. It includes basic functionality for badge creation and metadata storage, keeping it simple for a proof of concept.
-
-```solidity
+solidity
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -39,4 +37,3 @@ contract ProfileBadge is ERC721, Ownable {
         return getBadgeMetadata(badgeId);
     }
 }
-```
